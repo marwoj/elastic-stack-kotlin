@@ -1,0 +1,405 @@
+###Install elasticsearch
+
+
+
+# wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+# sudo apt-get install apt-transport-https
+# echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+# sudo apt-get update && sudo apt-get install elasticsearch
+# sudo /bin/systemctl daemon-reload
+# sudo /bin/systemctl enable elasticsearch.service
+# sudo systemctl start elasticsearch.service
+
+### Just for cleanup
+DELETE http://localhost:9200/movies
+
+### Create index with mapping
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "year": {
+        "type": "date"
+      }
+    }
+  }
+}
+
+###
+GET  http://localhost:9200/movies/_mappings
+
+### Insert single movie
+
+PUT http://localhost:9200/movies/_doc/109487
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar",
+  "year": 2014
+}
+
+###
+GET  http://localhost:9200/movies/_search?pretty
+
+### Bulk insert
+#movies.json zawiera wiele par rekordów
+#każdy rekord jest przesyłany indywidualnie
+#ponieważ es decyduje w którym shardzie powinien
+#się on znaleźć
+
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+###
+
+GET http://localhost:9200/movies/_search?pretty
+
+###
+#Update document by replacing it
+#Documents are immutable
+#When document is updated, a new document is created with
+#incremented _version field
+#old document is marked for deletion
+
+POST http://localhost:9200/movies/_doc/109487/
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo",
+  "year": 2014
+}
+
+###
+
+GET http://localhost:9200/movies/_doc/109487
+
+### Partial update
+
+POST http://localhost:9200/movies/_doc/109487/_update
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Interstellar"
+  }
+}
+
+### Find document by query
+GET http://localhost:9200/movies/_search?pretty&q=Dark
+
+###
+DELETE http://localhost:9200/movies/_doc/58559/
+
+### Concurency - get doccument with seq_no and primary_term (what is primary term?)
+
+GET http://localhost:9200/movies/_doc/109487
+
+### Provide seq no and primary term
+PUT http://localhost:9200/movies/_doc/109487?if_seq_no=13&if_primary_term=3
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo2",
+  "year": 2014
+}
+
+### Provide seq no and primary term
+# Set valid seq_no and primary_term
+PUT http://localhost:9200/movies/_doc/109487?if_seq_no=13&if_primary_term=3
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo2",
+  "year": 2014
+}
+
+### Partial update with retry
+
+POST http://localhost:9200/movies/_doc/109487/_update?retry_on_conflict=5r
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Interstellar"
+  }
+}
+
+### Create index with mapping
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "year": {
+        "type": "date"
+      }
+    }
+  }
+}
+
+###
+GET  http://localhost:9200/movies/_mappings
+
+### Insert single movie
+
+PUT http://localhost:9200/movies/_doc/109487
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar",
+  "year": 2014
+}
+
+###
+GET  http://localhost:9200/movies/_search?pretty
+
+### Bulk insert
+#movies.json zawiera wiele par rekordów
+#każdy rekord jest przesyłany indywidualnie
+#ponieważ es decyduje w którym shardzie powinien
+#się on znaleźć
+
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+###
+
+GET http://localhost:9200/movies/_search?pretty
+
+###
+#Update document by replacing it
+#Documents are immutable
+#When document is updated, a new document is created with
+#incremented _version field
+#old document is marked for deletion
+
+POST http://localhost:9200/movies/_doc/109487/
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo",
+  "year": 2014
+}
+
+###
+
+GET http://localhost:9200/movies/_doc/109487
+
+### Partial update
+
+POST http://localhost:9200/movies/_doc/109487/_update
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Interstellar"
+  }
+}
+
+### Find document by query
+GET http://localhost:9200/movies/_search?pretty&q=Dark
+
+###
+DELETE http://localhost:9200/movies/_doc/58559/
+
+### Concurency - get doccument with seq_no and primary_term (what is primary term?)
+
+GET http://localhost:9200/movies/_doc/109487
+
+### Provide seq no and primary term
+PUT http://localhost:9200/movies/_doc/109487?if_seq_no=13&if_primary_term=3
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo2",
+  "year": 2014
+}
+
+### Provide seq no and primary term
+# Set valid seq_no and primary_term
+PUT http://localhost:9200/movies/_doc/109487?if_seq_no=13&if_primary_term=3
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar foo2",
+  "year": 2014
+}
+
+### Partial update with retry
+
+POST http://localhost:9200/movies/_doc/109487/_update?retry_on_conflict=5r
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Interstellar"
+  }
+}
+
+### Analyzers and tokenizers
+# Use keyword mapping instead of text
+# Search on analyzed text fields will return most relevent results
+# Depending an analyzer, search can be case-insenstive, stemmed, stopwords removed, synonims,
+# search with multiple terms need not match them all
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": "Star Trek"
+    }
+  }
+}
+
+### Match phrase
+#genre is analyzed text, we want it to be keyword
+#Try search below, with `sci` query
+
+### Delete old index
+DELETE http://localhost:9200/movies
+
+### Create new index
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "year": {
+        "type": "date"
+      },
+      "genre": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "english"
+      }
+    }
+  }
+}
+
+### Insert movies once again
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Search by matching phrase
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "genre": "Sci-Fi"
+    }
+  }
+}
+
+### Data should be denormalized
+#Parent to children relation
+PUT http://localhost:9200/series
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "film_to_franchise": {
+        "type": "join",
+        "relations": {
+          "franchise": "film"
+        }
+      }
+    }
+  }
+}
+
+###
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/series.json
+
+#TODO wojtek ocb z formatem series.json ??
+### Find all that belongs to parent
+
+GET http://localhost:9200/series/_search?pretty
+Content-Type: application/json
+
+{
+  "query": {
+    "has_parent": {
+      "parent_type": "franchise",
+      "query": {
+        "match": {
+          "title": "Star Wars"
+        }
+      }
+    }
+  }
+}
+
+### Find parent of child
+
+GET http://localhost:9200/series/_search?pretty
+Content-Type: application/json
+
+{
+  "query": {
+    "has_child": {
+      "type": "film",
+      "query": {
+        "match": {
+          "title": "The Force Awakens"
+        }
+      }
+    }
+  }
+}
+

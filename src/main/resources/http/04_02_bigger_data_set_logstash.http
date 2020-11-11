@@ -1,0 +1,153 @@
+### Logstash can import from files, s3, beats, kafka and many many more...
+### Logstash can export data to elasticsearch, aws, hadoop, mongodb and many many more...
+
+### Install and cofigure logstash
+# wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+# sudo apt-get install apt-transport-https
+# echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+# sudo apt-get update && sudo apt-get install logstash
+# sudo /bin/systemctl daemon-reload
+# sudo /bin/systemctl enable logstash.service
+
+#Configure logstash - copy logstash.conf to /etc/logstash/conf.d/logstash.conf
+#Download access log, to directofy defined in logstash.conf: wget http://media.sundog-soft.com/es/access_log
+
+# sudo systemctl start logstash.service # - how to provide config file ??
+# or
+# sudo /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/logstash.conf
+
+### Get catalog of indicies
+
+GET  http://localhost:9200/_cat/indices?v
+
+###
+
+GET http://localhost:9200/logstash-2020.11.12-000001/_search
+
+###
+GET http://localhost:9200/logstash-2020.11.12-000001/_mapping
+
+### So far we installed logstash, used it to import data from access_log and created index
+
+
+# Import data from MySQL
+# Import data from S3
+# Import data from CSV
+# Import data from JSON
+
+# Grok
+# Grok debug tool: https://grokdebug.herokuapp.com/
+#Grok can parse logs of:
+#Nginx
+#IIS
+#MongoDB
+#GeoLocation mapping
+#AWS ELB and many more... http://media.sundog-soft.com/es/grok.txt
+#Logstash patterns: https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns
+
+
+###Logstash Input Plugins
+
+###Heartbeat plugin
+DELETE http://localhost:9200/heartbeat-epoch
+#sudo /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/logstash-input-plugins/heartbeat/heartbeat-sequence.conf
+###
+GET http://localhost:9200/heartbeat-sequence/_search
+
+### Generate input plugin
+### Userful for testing elasticsearch and logstash
+DELETE http://localhost:9200/generator
+#sudo /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/logstash-input-plugins/generator/generator.conf
+###
+GET http://localhost:9200/generator/_search
+
+### Dead letter queue
+# store in a file all
+
+# mkdir /home/wojciech/workspace/projects/elastic-stack/data/dlq
+# sudo chown logstash:logstash /home/wojciech/workspace/projects/elastic-stack/data/dlq/
+# sudo gedit /etc/logstash/logstash.yml
+# set:
+# dead_letter_queue.enable: true
+# path.dead_letter_queue: /home/wojciech/workspace/projects/elastic-stack/data/dlq/
+
+# Run logstash - try to import malformed data
+# sudo /usr/share/logstash/bin/logstash --path.settings /etc/logstash/ -f /etc/logstash/conf.d/logstash-input-plugins/dead-letter-queue/dlq-data-01-ingest.conf
+
+###
+# Only 10 of 20 documents should be imported
+GET http://localhost:9200/dlq-sample-data/_search
+Content-Type: application/json
+
+{
+  "track_total_hits": true,
+  "size": 0
+}
+
+### Malformed documents should be in dead letter queue
+# For sake of simplicyty, we do not add any filters
+# sudo /usr/share/logstash/bin/logstash --path.settings /etc/logstash/ -f /etc/logstash/conf.d/logstash-input-plugins/dead-letter-queue/dlq.conf
+
+GET http://localhost:9200/dlq-01/_search
+Content-Type: application/json
+
+{
+  "size": 1
+}
+
+### Note: DLQ is not cleared after processed, add "commit_offsets => true" to dlq.conf to do it
+
+
+### HTTP Poller input plugin
+#Pulls http peridically and saves response to elasticsearch
+# sudo /usr/share/logstash/bin/logstash --path.settings /etc/logstash/ -f /etc/logstash/conf.d/logstash-input-plugins/http-poller/http-poller.conf
+
+GET http://localhost:9200/http-poller-api/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 1,
+  "sort": [
+    {
+      "@timestamp": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+
+###
+GET http://localhost:9200/http-poller-es-health/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 1,
+  "sort": [
+    {
+      "@timestamp": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+
+
+### Twitter input plugin
+
+### Syslog
+#sudo git clone https://github.com/coralogix-resources/logstash-syslog.git /etc/logstash/conf.d/logstash-syslog
+
+### Hadoop
+
+### Apache Kafka
+
+### Apache Spark
+
+#MongoDB - No official input plugin - https://github.com/phutchins/logstash-input-mongodb - is dead
+#MongoDB - there is output plugin

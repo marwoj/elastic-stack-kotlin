@@ -1,0 +1,21 @@
+### Beats Framework - File Beat = backpressure ex. for logs
+#File beat keeps read pointer to read files
+
+### File Beat - without Logstash in this case
+GET http://localhost:9200/_cat/indices?v
+
+###
+GET http://localhost:9200/filebeat-7.10.0-2020.11.19-000001/_search
+###
+DELETE  http://localhost:9200/filebeat-7.10.0-2020.11.19-000001
+
+# sudo systemctl stop filebeat.service
+# cd /etc/filebeat/modules.d/
+# gedit apache.yml
+# sudo systemctl start filebeat.service
+
+###
+# cd /usr/share/filebeat/bin
+# sudo filebeat setup --dashboards
+# sudo systemctl stop kibana.service
+# sudo systemctl start kibana.service

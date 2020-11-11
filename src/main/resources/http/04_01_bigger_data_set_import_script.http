@@ -1,0 +1,63 @@
+### Importing data can be done using scripts, but it is not the simplest choice
+# How to do it? Ex. python program that reads csv:
+# Download wget http://files.grouplens.org/datasets/movielens/ml-latest-small.zip
+# Unzip file
+# Download wget http://media.sundog-soft.com/es7/MoviesToJson.py
+# Run python3 MoviesToJson.py > moremovies.json
+
+### Just for cleanup
+DELETE http://localhost:9200/movies
+
+###
+DELETE http://localhost:9200/autocomplete
+
+### Import full movies dataset
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/moremovies.json
+
+### Create index autocomplete
+PUT http://localhost:9200/autocomplete
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "search_as_you_type"
+      },
+      "genre": {
+        "type": "search_as_you_type"
+      }
+    }
+  }
+}
+
+### Reindex movies to autocompleted index
+POST http://localhost:9200/_reindex
+Content-Type: application/json
+
+{
+  "source": {
+    "index": "movies"
+  },
+  "dest": {
+    "index": "autocomplete"
+  }
+}
+
+
+###
+# Note script can be better - it can read data using client library - here elasticsearch for python
+# Run wget http://media.sundog-soft.com/es7/IndexRatings.py
+# Run: pip3 install elasticsearch
+# Run: python3 IndexRatings.py
+# Run: python3 Tags.py
+# All ratings should be imported
+
+###
+GET http://localhost:9200/ratings/_search
+
+###
+GET http://localhost:9200/tags/_search

@@ -1,0 +1,138 @@
+### Elastic search is not only for searching
+
+# Metrics: average, stats, min/max, percentiles etc.
+# Buckets: histograms, ranges, distances, significant terms etc.
+# Pipelines: moving average, avarage bucket, cumulative sum etc.
+# Matrix: matrix stats
+
+###
+DELETE http://localhost:9200/ratings
+
+### Create index rating with raw field as keyword
+PUT http://localhost:9200/ratings
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "fielddata": "true",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+
+### Re-import data
+# Run: python3 IndexRatingsV2.py
+
+
+###
+GET http://localhost:9200/ratings/_search?size=1
+
+### Bucket by rating value, create aggregation called `ratings`
+# size = 0 means do not return any search results
+GET http://localhost:9200/ratings/_search?size=0
+Content-Type: application/json
+
+{
+  "aggs": {
+    "ratings": {
+      "terms": {
+        "field": "rating"
+      }
+    }
+  }
+}
+
+### How many movies has rating = 5
+GET http://localhost:9200/ratings/_search?size=0
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "rating": 5.0
+    }
+  },
+  "aggs": {
+    "ratings": {
+      "terms": {
+        "field": "rating"
+      }
+    }
+  }
+}
+
+### What is a rating for specific movie
+GET http://localhost:9200/ratings/_search?size=0
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": "Inception"
+    }
+  },
+  "aggs": {
+    "avg_rating": {
+      "avg": {
+        "field": "rating"
+      }
+    }
+  }
+}
+
+### Histograms
+# What is a distribution of ratings
+GET http://localhost:9200/ratings/_search?size=0
+Content-Type: application/json
+
+{
+  "aggs": {
+    "whole_ratings": {
+      "histogram": {
+        "field": "rating",
+        "interval": 1.0
+      }
+    }
+  }
+}
+
+### Time Series
+# Elasticsearch knows about date rules ex. which timestamp belongs to January 2020 etc.
+
+### Nested aggregations
+### What is a rating of each star wars movie?
+### Use  "field": "title.raw"
+
+GET http://localhost:9200/ratings/_search?size=0
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": "Star Wars"
+    }
+  },
+  "aggs": {
+    "titles": {
+      "terms": {
+        "field": "title.raw"
+      },
+      "aggs": {
+        "avg.rating": {
+          "avg": {
+            "field": "rating"
+          }
+        }
+      }
+    }
+  }
+}
+

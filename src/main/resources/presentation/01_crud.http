@@ -1,0 +1,181 @@
+###Install elasticsearch - written in Java
+
+# wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+# sudo apt-get install apt-transport-https
+# echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+
+# sudo apt-get update &&
+# sudo apt-get install elasticsearch && sudo apt-get install logstash && sudo apt-get install kibana && sudo apt-get install filebeat
+
+# sudo /bin/systemctl daemon-reload &&
+# sudo /bin/systemctl enable elasticsearch.service &$ sudo /bin/systemctl enable logstash.service &&
+# sudo /bin/systemctl enable kibana.service &$ sudo /bin/systemctl enable filebeat.service
+
+# sudo systemctl start elasticsearch.service && sudo systemctl start logstash.service &&
+# sudo systemctl start kibana.service && sudo systemctl start filebeat.service &&
+
+### Just for cleanup
+DELETE http://localhost:9200/movies
+
+### Inseart a single movie with default mapping
+POST http://localhost:9200/movies/_doc/
+Content-Type: application/json
+
+{
+  "genre": [
+    "Drama"
+  ],
+  "title": "Being me",
+  "year": 2020
+}
+
+### Movie is inserted
+GET http://localhost:9200/movies/_search
+
+### Default mapping (with keyword for strings) is created
+GET http://localhost:9200/movies/_mapping
+
+
+### Delete default mapping
+DELETE http://localhost:9200/movies
+
+### Create new index with mapping
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "year": {
+        "type": "date"
+      },
+      "genre": {
+        "type": "text"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "english"
+      }
+    }
+  }
+}
+
+### Get mappings for index movies
+GET  http://localhost:9200/movies/_mapping
+
+### Insert single movie
+POST http://localhost:9200/movies/_doc/
+Content-Type: application/json
+
+{
+  "genre": [
+    "Drama"
+  ],
+  "title": "Being me",
+  "year": 2020
+}
+
+### Bulk insert
+# moremovies.json contains multiple pairs of records
+# records are transferred one by one, because es decides
+# in which shard it should be stored
+
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/moremovies.json
+
+###
+GET  http://localhost:9200/movies/_search?pretty
+
+
+
+###
+# Update document by replacing it
+# Documents are immutable, wWhen document is updated,
+# a new document is created with incremented _version field
+# old document is marked for deletion
+###
+GET  http://localhost:9200/movies/_doc/109487?pretty
+
+###
+POST http://localhost:9200/movies/_doc/109487/
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar OMG",
+  "year": 2014
+}
+
+### Get updated movie
+GET http://localhost:9200/movies/_doc/109487
+
+### Partial update
+POST http://localhost:9200/movies/_doc/109487/_update
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Interstellar"
+  }
+}
+
+### Delete document
+DELETE http://localhost:9200/movies/_doc/58559/
+
+### Concurency
+### Get doccument with seq_no and primary_term
+GET http://localhost:9200/movies/_doc/109487
+
+### Update document and provide seq no and primary term
+PUT http://localhost:9200/movies/_doc/109487?if_seq_no=9747&if_primary_term=1
+Content-Type: application/json
+
+{
+  "genre": [
+    "IMAX",
+    "Sci-Fi"
+  ],
+  "title": "Interstellar OMG 2",
+  "year": 2014
+}
+
+###
+GET http://localhost:9200/movies/_doc/109487
+
+####################################
+### Pagination
+####################################
+# Deep pagination can kill performance - every result must be retreived, collected and sorted
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "from": 0,
+  "size": 2,
+  "query": {
+    "match": {
+      "genre": "Sci-Fi"
+    }
+  }
+}
+
+####################################
+### Sorting
+####################################
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": {
+    "year": "desc"
+  }
+}

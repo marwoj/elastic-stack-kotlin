@@ -1,0 +1,92 @@
+#wget http://media.sundog-soft.com/es7/shakes-mapping.json
+#wget http://media.sundog-soft.com/es7/shakespeare_7.0.json
+### Check existing indexes
+GET  http://localhost:9200/_cat/indices?v
+
+###
+DELETE  http://localhost:9200/shakespeare
+
+### Create shakespeare mapping
+PUT http://localhost:9200/shakespeare
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "speaker": {
+        "type": "keyword"
+      },
+      "play_name": {
+        "type": "keyword"
+      },
+      "line_id": {
+        "type": "integer"
+      },
+      "speech_number": {
+        "type": "integer"
+      }
+    }
+  }
+}
+
+### Import data
+POST http://localhost:9200/shakespeare/_bulk
+Content-Type: application/json
+
+< ../data/shakespeare_7.0.json
+
+### Check if data is ipmorted
+
+GET http://localhost:9200/shakespeare/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "text_entry": "to be or not to be"
+    }
+  }
+}
+
+### Kibana:
+# Which word are most popular
+# What is the length of each play
+
+
+####################################
+### Elastic Search SQL (since ES 6.3)
+####################################
+
+POST http://localhost:9200/_xpack/sql?format=txt
+Content-Type: application/json
+
+{
+  "query": "DESCRIBE movies"
+}
+
+###
+POST http://localhost:9200/_xpack/sql?format=txt
+Content-Type: application/json
+
+{
+  "query": "SELECT title, year FROM movies WHERE year < 1920 ORDER BY year LIMIT 6"
+}
+
+### What will be real executed query?
+###
+POST http://localhost:9200/_xpack/sql/translate?pretty
+Content-Type: application/json
+
+{
+  "query": "SELECT title, year FROM movies WHERE year < 1920 ORDER BY year LIMIT 6"
+}
+
+### Elastic Search SQL doesn't work with arrays :/  Request below will fail
+POST http://localhost:9200/_xpack/sql?format=txt
+Content-Type: application/json
+
+{
+  "query": "SELECT genre FROM movies LIMIT 10"
+}
+
+### Kibana canvas - screenshot
