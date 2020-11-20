@@ -1,0 +1,677 @@
+### Slides - index + rating
+### Find document by query
+GET http://localhost:9200/movies/_search?pretty&q=Interstellar
+
+### Get mappings for index movies
+GET  http://localhost:9200/movies/_mappings
+
+####################################
+### Match text vs keyword
+####################################
+# For text field, standard analyzer is used as default.
+# it uses standard tokenizer (grammar based tokenization)
+# it uses lower-case filter
+# Genre is analyzed text, we want it to be keyword
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "genre": "SCi"
+    }
+  }
+}
+
+### We want to match all phrase
+# Delete old index
+DELETE http://localhost:9200/movies
+
+### Create new index with keyword type for genre
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "year": {
+        "type": "date"
+      },
+      "genre": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "english"
+      }
+    }
+  }
+}
+
+### Insert movies once again
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/moremovies.json
+
+### Search by matching phrase
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "genre": "Sci-Fi"
+    }
+  }
+}
+
+### How important is search query? Query is also analyzed
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": "The Golden"
+    }
+  }
+}
+
+
+####################################
+### Analyze API
+####################################
+### How english analyzer works?
+
+### defined analyzer
+GET http://localhost:9200/_analyze
+Content-Type: application/json
+
+{
+  "analyzer": "standard",
+  "text": [
+    "Test 1-2-3",
+    "Test"
+  ]
+}
+
+### custom analyzer: tokenizer + filter
+GET http://localhost:9200/_analyze
+Content-Type: application/json
+
+{
+  "tokenizer": "keyword",
+  "filter": [
+    "lowercase"
+  ],
+  "char_filter": [
+    "html_strip"
+  ],
+  "text": "THIS is a <b>test</b>"
+}
+
+###
+GET http://localhost:9200/_analyze
+Content-Type: application/json
+
+{
+  "analyzer": "english",
+  "text": "A dog barked on the dogs"
+}
+
+
+
+
+####################################
+### More advanced search queries
+####################################
+
+### Query lite interface - URL Search - not a standard, rather for quick prototyping
+# Drawbacks:
+# URL requires encoding (spaces, +, >, < etc)
+# security issues
+# fragile - one letter changed can cause query to fail
+GET http://localhost:9200/movies/_search?q=title:trek
+
+
+### Request body search
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "term": {
+          "title": "trek"
+        }
+      },
+      "filter": {
+        "range": {
+          "year": {
+            "gte": "2010"
+          }
+        }
+      }
+    }
+  }
+}
+
+### TODO wojtek więcej o queries
+### Some type of queries:
+# match_all
+# match
+# mutli_match
+# bool
+
+### Bool operators: must, must_not, should (should = or)
+
+### Filtered queries are cached. There are many filters:
+# Term: {"term":{"year":2014"}}
+# Terms: {"terms":{"genre":["Sci-Fi","IMAX"]"}}
+# Range {"range": { "year": {"gte": "2010"}}
+# Exists {"exists":{"field":tags"}}
+# Missing {"missing":{"field":tags"}}
+
+
+# We can combine filters inside queries and queries inside filters too
+###
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "genre": "Sci-Fi"
+        }
+      },
+      "must_not": {
+        "match": {
+          "title": "trek"
+        }
+      },
+      "filter": {
+        "range": {
+          "year": {
+            "gte": 2010,
+            "lt": 2015
+          }
+        }
+      }
+    }
+  }
+}
+
+
+####################################
+### Match vs Match phrase
+####################################
+### We want "Star Wars" to not return other movies
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": "star wars"
+    }
+  }
+}
+
+### Use match phrase query
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": "star wars"
+    }
+  }
+}
+
+
+####################################
+### Sorting - part 2
+####################################
+
+### Sorting by analyzed field is not possible.
+#Copy of indexed field has to be stored in index.
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": "title"
+}
+
+### Data has to be reindexed
+DELETE http://localhost:9200/movies
+
+### Create index with original title (as field [raw])
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "year": {
+        "type": "date"
+      },
+      "genre": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+
+### Import movies once again
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Sort by title - use raw field
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": {
+    "title.raw": "desc"
+  }
+}
+
+
+####################################
+### Slop value
+####################################
+# slop value - search for words in query, that are close
+# slop=1 - one word from each other
+# slop=100 - closer words will have higher relevance
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "star beyond",
+        "slop": 1
+      }
+    }
+  }
+}
+
+####################################
+### Fuzzy queries
+####################################
+# levenshtein edit distance can detect:
+ # substitutions: interstellar -> interstell[e]r
+ # insertions:    interstellar -> in[s]terstellar
+ # deletion:      interstellar -> interstel[]ar
+# All above have an levenshtein distance = 1
+
+# TODO wojtek jak działa levenshtein distance
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "fuzzy": {
+      "title": {
+        "value": "interstellyy",
+        "fuzziness": "2"
+      }
+    }
+  }
+}
+
+
+### fuzziness : auto
+# 0 for 1-2 characters
+# 1 for 3-5 characters
+# 2 for anything else
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "fuzzy": {
+      "title": {
+        "value": "interstellqq",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+
+
+####################################
+### Partial matching
+####################################
+# To demonstrate this, we need year as text field - we need to reindex movies
+DELETE http://localhost:9200/movies
+
+### Create mapping with year type as text
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "year": {
+        "type": "text"
+      },
+      "genre": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+
+### Reindex data once again
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/moremovies.json
+
+### Prefix queries
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "prefix": {
+      "year": "19"
+    }
+  }
+}
+
+### Wildcard queries
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "wildcard": {
+      "year": "1*"
+    }
+  }
+}
+
+####################################
+### Search as you type
+####################################
+
+# it can be done with match_phrase_prefix - same as match_prefix but works on phrase level
+# it is easy way how to do it, but it is not performent
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase_prefix": {
+      "title": {
+        "query": "Star Tr",
+        "slop": 10
+      }
+    }
+  }
+}
+
+### More efficient way of search as you type
+# N-grams + edge N-grams
+# unigram [s,t,a,r] | [s]
+# bigram [st,ta,ar] | [st]
+# trigram  [sta,tar] | [sta]
+# 4-gram [star] | [star]
+
+### To use search as you type, movies has to be reindexed
+DELETE http://localhost:9200/movies
+
+###
+# Create custom filter called autocomplete_filter which will be an edge n-gram with range 1-20
+# Then create custom analyzer called autocomplete, which uses lowercase and autocomplete_filter filters
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "autocomplete_filter": {
+          "type": "edge_ngram",
+          "min_gram": 1,
+          "max_gram": 20
+        }
+      },
+      "analyzer": {
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "autocomplete_filter"
+          ]
+        }
+      }
+    }
+  }
+}
+
+### Try out created analyzer
+GET http://localhost:9200/movies/_analyze
+Content-Type: application/json
+
+{
+  "analyzer": "autocomplete",
+  "text": "Sta"
+}
+
+### Create index, that maps created analyzer to title field
+PUT http://localhost:9200/movies/_mapping
+Content-Type: application/json
+
+{
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "year": {
+      "type": "integer"
+    },
+    "genre": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "autocomplete"
+    }
+  }
+}
+
+### Reindex data - use smaller dataset
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Try out search as you type with n-gram analyzer
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Star Tr"
+      }
+    }
+  }
+}
+
+### Ups... it does not work? Other movies starting with [s] are returned
+# It is because autocomplete analyzer is used both for index and for query
+# Query is split to n-grams also - here unigram [s] matches [S]pace
+
+#Use standard analyzer for search query
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Star Tr",
+        "analyzer": "standard"
+      }
+    }
+  }
+}
+
+### Ups...
+### It breaks when `star trek` is used - star is matched by both star wars and star trek
+
+
+####################################
+### Autocomplete with search_as_you_type
+####################################
+
+# search_as_you_type is based on shingle token filter:
+# By default, the shingle token filter outputs two-word shingles and unigrams.
+# The lazy dog with shingle_size = 2: [ the, the lazy, lazy, lazy dog, dog ]
+
+### search_as_you_type field is based also on edge n-grams
+POST http://localhost:9200/movies/_analyze
+Content-Type: application/json
+
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "edge_ngram",
+      "min_gram": 1,
+      "max_gram": 4
+    }
+  ],
+  "text": "Star"
+}
+
+###
+DELETE http://localhost:9200/autocomplete
+
+###
+PUT http://localhost:9200/autocomplete
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "search_as_you_type"
+      },
+      "genre": {
+        "type": "search_as_you_type"
+      }
+    }
+  }
+}
+
+### Two fields: genre and title uses search_as_you_type analyzer
+
+
+GET http://localhost:9200/autocomplete/_mapping
+
+### Multimatch query, match title, title._2gram and title._3gram // TODO wojtek prezentacja
+### TODO wojtek screen z odcinka 43 - ukryte pola
+###
+GET http://localhost:9200/autocomplete/_analyze?pretty
+Content-Type: application/json
+
+{
+  "text": "Star Tr"
+}
+
+### Reindex movies to autocompleted index
+POST http://localhost:9200/_reindex
+Content-Type: application/json
+
+{
+  "source": {
+    "index": "movies"
+  },
+  "dest": {
+    "index": "autocomplete"
+  }
+}
+
+###
+GET http://localhost:9200/autocomplete/_search
+Content-Type: application/json
+
+{
+  "size": 5,
+  "query": {
+    "multi_match": {
+      "query": "Star Tr",
+      "type": "bool_prefix",
+      "fields": [
+        "title",
+        "title._2gram",
+        "title._3gram"
+      ]
+    }
+  }
+}
+
+### Demo: copy-caste search as you type in console
+### Put more movies
+DELETE http://localhost:9200/movies
+
+###
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/moremovies.json
+
+### Reindex movies to autocompleted index
+POST http://localhost:9200/_reindex
+Content-Type: application/json
+
+{
+  "source": {
+    "index": "movies"
+  },
+  "dest": {
+    "index": "autocomplete"
+  }
+}

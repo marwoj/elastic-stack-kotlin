@@ -1,0 +1,137 @@
+#sudo apt-get install kibana
+#sudo /bin/systemctl deamon-reload
+#sudo /bin/systemctl enable kibana.service
+#sudo /bin/systemctl start kibana.service
+#sudo /bin/systemctl status kibana.service
+
+### Check existing indexes
+GET  http://localhost:9200/_cat/indices?v
+
+#wget http://media.sundog-soft.com/es7/shakes-mapping.json
+#wget http://media.sundog-soft.com/es7/shakespeare_7.0.json
+
+### Create shakespeare mapping
+PUT http://localhost:9200/shakespeare
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "speaker": {
+        "type": "keyword"
+      },
+      "play_name": {
+        "type": "keyword"
+      },
+      "line_id": {
+        "type": "integer"
+      },
+      "speech_number": {
+        "type": "integer"
+      }
+    }
+  }
+}
+
+### Import data
+POST http://localhost:9200/shakespeare/_bulk
+Content-Type: application/json
+
+< ../data/shakespeare_7.0.json
+
+### Check if data is ipmorted
+
+GET http://localhost:9200/shakespeare/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "text_entry": "to be or not to be"
+    }
+  }
+}
+
+### Which word are most popular
+### Which is the length of each play
+
+### Kibana lens - system stress tests
+
+
+
+### Elastic Search SQL (since ES 6.3)
+POST http://localhost:9200/_xpack/sql?format=txt
+Content-Type: application/json
+
+{
+  "query": "DESCRIBE movies"
+}
+
+###
+POST http://localhost:9200/_xpack/sql?format=txt
+Content-Type: application/json
+
+{
+  "query": "SELECT title, year FROM movies WHERE year < 1920 ORDER BY year LIMIT 6"
+}
+
+### What will be real executed query?
+###
+POST http://localhost:9200/_xpack/sql/translate?pretty
+Content-Type: application/json
+
+{
+  "query": "SELECT title, year FROM movies WHERE year < 1920 ORDER BY year LIMIT 6"
+}
+
+### There is also elastic search sql cli
+#sudo /usr/share/elasticsearch/bin/elasticsearch-sql-cli
+
+### Elastic Search SQL doesn't work with arrays :/  Request below will fail
+# [Arrays (returned by [genre]) are not supported].
+# SELECT genre FROM movies LIMIT 10;
+
+### Kibana canvas - screenshot
+
+### Note kibana workspaces - can we use it for different environments ?
+
+### Beats Framework - File Beat = backpressure ex. for logs
+#File beat keeps read pointer to read files
+#X-Pack security
+
+
+
+### File Beat - without Logstash in this case
+# sudo apt-get update && sudo apt-get install filebeat
+# sudo systemctl stop elasticsearch.service
+# sudo systemctl start elasticsearch.service
+# cd /etc/filebeat/modules.d/
+# sudo mv apache.yml.disabled apache.yml
+# sudo gedit apache.yml
+
+#- module: apache
+#  # Access logs
+#  access:
+#    enabled: true
+#
+#    # Set custom paths for the log files. If left empty,
+#    # Filebeat will choose the paths depending on your OS.
+#    var.paths: ["/home/wojciech/workspace/projects/elastic-stack/data/logs/access*"]
+
+# sudo systemctl start filebeat.service
+
+### Check if filebeat index is created:
+
+GET http://localhost:9200/_cat/indices?v
+
+###
+DELETE  http://localhost:9200/filebeat-7.10.0
+
+###
+# cd /usr/share/filebeat/bin
+# sudo filebeat setup --dashboards
+# sudo systemctl stop kibana.service
+# sudo systemctl start kibana.service
+
+###
+GET http://localhost:9200/filebeat-7.10.0/_search

@@ -1,0 +1,515 @@
+### Query lite interface - URL Search - not a standard, rather for quick prototyping
+# URL requires encoding (spaces, +, >, < etc)
+# security issues
+# fragile - one letter changed can cause query to fail
+
+GET http://localhost:9200/movies/_search?q=title:trek
+
+###
+GET http://localhost:9200/movies/_search?q=+title:trek+year>2010
+
+### Request body search
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "term": {
+          "title": "trek"
+        }
+      },
+      "filter": {
+        "range": {
+          "year": {
+            "gte": "2010"
+          }
+        }
+      }
+    }
+  }
+}
+
+### There are many filters:
+# Term: {"term":{"year":2014"}}
+# Terms: {"terms":{"genre":["Sci-Fi","IMAX"]"}}
+# Range {"range": { "year": {"gte": "2010"}}
+# Exists {"exists":{"field":tags"}}
+# Missing {"missing":{"field":tags"}}
+# Bool: must, must_not, should (should = or)
+
+### Some type of queries:
+# match_all
+# match
+# mutli_match
+# bool
+
+# You can combine filters inside queries and queries inside filters too
+
+### Filters - move advanced query
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "genre": "Sci-Fi"
+        }
+      },
+      "must_not": {
+        "match": {
+          "title": "trek"
+        }
+      },
+      "filter": {
+        "range": {
+          "year": {
+            "gte": 2010,
+            "lt": 2015
+          }
+        }
+      }
+    }
+  }
+}
+
+####################################
+### Phrase matching ex. "Star Trek" not only "Trek"
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": "star wars"
+    }
+  }
+}
+
+### Both Star Trek and Star Wars movies were returned. To fix this, use match_phrase
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": "star wars"
+    }
+  }
+}
+
+### slop value - search for words in query, that are close (slop=1 means one word from each other)
+### slop:100 - closer words will have higher relevance
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "star beyond",
+        "slop": 1
+      }
+    }
+  }
+}
+
+####################################
+### Pagination
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "from": 0,
+  "size": 2,
+  "query": {
+    "match": {
+      "genre": "Sci-Fi"
+    }
+  }
+}
+
+### Deep pagination can kill performance - every result must be retreived, collected and sorted
+
+####################################
+### Sorting
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": {
+    "year": "desc"
+  }
+}
+
+### Sorting by analyzed field is not possible. Copy of indexed field has to be stored in index.
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": "title"
+}
+
+### Data has to be reindexed
+
+DELETE http://localhost:9200/movies
+
+### Create index with original title (as field raw)
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      },
+      "year": {
+        "type": "date"
+      }
+    }
+  }
+}
+
+### Import movies once again
+
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Sort by title - use raw field
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "sort": {
+    "title.raw": "desc"
+  }
+}
+
+
+
+
+####################################
+### Fuzzy queries
+# levenshtein edit distance can detect:
+ # substitutions interstellar -> interstell[e]r
+ # insertions    interstellar -> in[s]terstellar
+ # deletion      interstellar -> interstel[]ar
+# All above have an levenshtein distance = 1
+
+# TODO wojtek jak działa levenshtein distance
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "fuzzy": {
+      "title": {
+        "value": "interstellyy",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+
+
+### fuzziness : auto
+# 0 for 1-2 characters
+# 1 for 3-5 characters
+# 2 for anything else
+
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "fuzzy": {
+      "title": {
+        "value": "interstellqq",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+
+
+### Partial matching
+
+# We need year as text field - we need to reindex movies
+DELETE http://localhost:9200/movies
+
+###
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "year": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+### Reindex data
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Prefix queries
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "prefix": {
+      "year": "19"
+    }
+  }
+}
+
+### Wildcard queries
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "wildcard": {
+      "year": "1*"
+    }
+  }
+}
+
+### Search as you type
+# use match_phrase_prefix - same as match_prefix but works on phrase level
+# presented above is easy way how to do it, but it is not performent
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_phrase_prefix": {
+      "title": {
+        "query": "star tr",
+        "slop": 10
+      }
+    }
+  }
+}
+
+### More efficient way of search as you type
+### N-grams + edge N-grams
+# unigram [s,t,a,r] | [s]
+# bigram [st,ta,ar] | [st]
+# trigram  [sta,tar] | [sta]
+# 4-gram [star] | [star]
+
+### Reindex movies once again
+
+DELETE http://localhost:9200/movies
+
+###
+### Create custom filter called autocomplete_filter which is an n-gram with range 1-20
+### Then create custom analyzer called autocomplete, which uses lowercase and autocomplete_filter filters
+
+PUT http://localhost:9200/movies
+Content-Type: application/json
+
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "autocomplete_filter": {
+          "type": "edge_ngram",
+          "min_gram": 1,
+          "max_gram": 20
+        }
+      },
+      "analyzer": {
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "autocomplete_filter"
+          ]
+        }
+      }
+    }
+  }
+}
+
+### Try out created analyzer
+GET http://localhost:9200/movies/_analyze
+Content-Type: application/json
+
+{
+  "analyzer": "autocomplete",
+  "text": "Sta"
+}
+
+
+### Create index, that maps created analyzer to title field
+PUT http://localhost:9200/movies/_mapping
+Content-Type: application/json
+
+{
+  "properties": {
+    "title": {
+      "type": "text",
+      "analyzer": "autocomplete"
+    }
+  }
+}
+
+### Reindex data
+PUT http://localhost:9200/_bulk?pretty
+Content-Type: application/json
+
+< ../data/movies.json
+
+### Try out search as you type with n-gram analyzer
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "sta"
+      }
+    }
+  }
+}
+
+### Ups, why it does not work? Plan 9 from Outer Space is returned.
+# It is because autocomplete analyzer is used both for index and for query
+# Query is split to n-grams also - here unigram [s] matches [S]pace
+
+#Use staandard analyzer for search query
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "sta",
+        "analyzer": "standard"
+      }
+    }
+  }
+}
+
+### It breaks when `star tr` is used - star is matched by both star wars and star trek
+### completion suggesters should be used instead
+GET http://localhost:9200/movies/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "star tr",
+        "analyzer": "standard"
+      }
+    }
+  }
+}
+
+### Autocomplete with search_as_you_type
+# Test how analyze api works
+
+### How edge n-gram works?
+POST http://localhost:9200/movies/_analyze
+Content-Type: application/json
+
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "edge_ngram",
+      "min_gram": 1,
+      "max_gram": 4
+    }
+  ],
+  "text": "Star"
+}
+
+### How search as you type
+### Create new index called autocomplete
+
+PUT http://localhost:9200/autocomplete
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "search_as_you_type"
+      },
+      "genre": {
+        "type": "search_as_you_type"
+      }
+    }
+  }
+}
+
+### Reindex movies to autocompleted index
+
+POST http://localhost:9200/_reindex
+Content-Type: application/json
+
+{
+  "source": {
+    "index": "movies"
+  },
+  "dest": {
+    "index": "autocomplete"
+  }
+}
+
+### Two fields: genre and title uses search_as_you_type analyzer
+GET http://localhost:9200/autocomplete/_mapping
+
+### Multimatch query, match title, title._2gram and title._3gram
+### TODO wojtek screen z odcinka 43 - ukryte pola
+
+GET http://localhost:9200/autocomplete/_search?pretty'
+Content-Type: application/json
+
+{
+  "size": 5,
+  "query": {
+    "multi_match": {
+      "query": "Sta",
+      "type": "bool_prefix",
+      "fields": [
+        "title",
+        "title._2gram",
+        "title._3gram"
+      ]
+    }
+  }
+}
+
+### Demo: copy-caste search as you type in console
+

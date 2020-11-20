@@ -1,0 +1,243 @@
+
+### Relations are not commonly used in elasticserch, but it is possilbe
+
+### Flattened data type
+# Each subfield gets mapped to individual fields by default with dynamic mapping Wojtek ocb ??
+# This may cause performance issues
+# To avaoid mapping explosion ES offers flattened data type
+
+#Index sample nested document using default dynamic mapping - fileds can change end expand
+
+PUT http://localhost:9200/demo-default/_doc/1
+Content-Type: application/json
+
+{
+  "message": "[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.",
+  "fileset": {
+    "name": "syslog"
+  },
+  "process": {
+    "name": "org.gnome.Shell.desktop",
+    "pid": 3383
+  },
+  "@timestamp": "2020-03-09T18:00:54.000+05:30",
+  "host": {
+    "hostname": "bionic",
+    "name": "bionic"
+  }
+}
+
+###
+
+GET http://localhost:9200/demo-default/_mapping?pretty=true
+
+### Get cluster state
+
+GET http://localhost:9200/_cluster/state?pretty=true
+
+### Using flattened data type:
+#Create new index
+PUT http://localhost:9200/demo-flattened
+
+###
+#Create mapping with flattened host field
+PUT http://localhost:9200/demo-flattened/_mapping
+Content-Type: application/json
+
+{
+  "properties": {
+    "host": {
+      "type": "flattened"
+    }
+  }
+}
+
+###
+PUT http://localhost:9200/demo-flattened/_doc/1
+Content-Type: application/json
+
+{
+  "message": "[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.",
+  "fileset": {
+    "name": "syslog"
+  },
+  "process": {
+    "name": "org.gnome.Shell.desktop",
+    "pid": 3383
+  },
+  "@timestamp": "2020-03-09T18:00:54.000+05:30",
+  "host": {
+    "hostname": "bionic",
+    "name": "bionic"
+  }
+}
+
+###
+GET http://localhost:9200/demo-flattened/_mapping?pretty=true
+
+### Add a new field to flattened host field
+POST http://localhost:9200/demo-flattened/_update/1
+Content-Type: application/json
+
+{
+  "doc": {
+    "host": {
+      "osVersion": "Bionic Beaver",
+      "osArchitecture": "x86_64"
+    }
+  }
+}
+
+###
+GET http://localhost:9200/demo-flattened/_search?pretty=true
+
+### Adding a new field, doesn't change a mapping - this does not require syncing of ES nodes
+GET http://localhost:9200/demo-flattened/_mapping?pretty=true
+
+###
+# Draws of flattended data type: all fields of flattened data type object will
+# be treated as keywords - no analyzers/tokenizers will be applied to flattened field
+
+GET http://localhost:9200/demo-flattened/_search?pretty=true
+Content-Type: application/json
+
+{
+  "query": {
+    "term": {
+      "host": "Bionic Beaver"
+    }
+  }
+}
+
+### Search by specific sub-field
+GET http://localhost:9200/demo-flattened/_search?pretty=true
+Content-Type: application/json
+
+{
+  "query": {
+    "term": {
+      "host.osVersion": "Bionic Beaver"
+    }
+  }
+}
+
+### ups... partial match doesn't work because fields are not analyzed
+GET http://localhost:9200/demo-flattened/_search?pretty=true
+Content-Type: application/json
+
+{
+  "query": {
+    "term": {
+      "host.osVersion": "Beaver"
+    }
+  }
+}
+
+
+### supported queires for flattened data type
+#term, terms, terms_set
+#prefix
+#range (non numerical range operator)
+#match and multi_match (we have to suply exact kywords)
+#query_string and simple_query_string
+#exists
+
+
+### Dealing with mapping exceptions
+#Explicit Mapping vs Dynamic Mapping
+
+### Mappings
+# date
+# keyword
+# ip
+# integer
+# text
+#...more
+
+PUT http://localhost:9200/microservice-logs
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "service": {
+        "type": "keyword"
+      },
+      "host_ip": {
+        "type": "ip"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "message": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+###
+#Safety Zone for port will be used
+POST http://localhost:9200/microservice-logs/_doc?pretty
+Content-Type: application/json
+
+{
+  "timestamp": "2020-04-11T12:34:56.789Z",
+  "service": "XYZ",
+  "host_ip": "10.0.2.15",
+  "port": "15000",
+  "message": "Hello!"
+}
+
+###
+POST http://localhost:9200/microservice-logs/_doc?pretty
+Content-Type: application/json
+
+{
+  "timestamp": "2020-04-11T12:34:56.789Z",
+  "service": "XYZ",
+  "host_ip": "10.0.2.15",
+  "port": "NONE",
+  "message": "I am not well!"
+}
+
+###
+GET http://localhost:9200/microservice-logs/_mapping?pretty
+
+###
+GET http://localhost:9200/microservice-logs/_search?pretty
+
+### Ignore malformed fields - ommit them from index
+POST http://localhost:9200/microservice-logs/_close
+
+###
+PUT http://localhost:9200/microservice-logs/_settings
+Content-Type: application/json
+
+{
+  "index.mapping.ignore_malformed": true
+}
+
+###
+POST http://localhost:9200/microservice-logs/_open
+
+###
+POST http://localhost:9200/microservice-logs/_doc?pretty
+Content-Type: application/json
+
+{
+  "timestamp": "2020-04-11T12:34:56.789Z",
+  "service": "XYZ",
+  "host_ip": "10.0.2.15",
+  "port": "NONE",
+  "message": "I am not well!"
+}
+
+### Use returned ID.  Look at _ignored field: port is not indexed
+GET http://localhost:9200/microservice-logs/_doc/KLKGtnUB8KLZzKpyUWZ1
+
+###Limitations of ignoring malforme fields - doesn't work with json, etc
+#Getter idea is to use common guidlines about format

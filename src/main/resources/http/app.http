@@ -1,0 +1,4 @@
+GET localhost:8080/movies?title=star
+
+###
+GET  http://localhost:9200/movies/_search?pretty
